@@ -1,0 +1,168 @@
+diff -ru bind-9.9.2-P1.org/bin/named/query.c bind-9.9.2-P1.a-filter/bin/named/query.c
+--- bind-9.9.2-P1.org/bin/named/query.c 2012-10-26 13:50:34.000000000 +0900
++++ bind-9.9.2-P1.a-filter/bin/named/query.c 2013-02-23 19:14:08.000000000 +0900
+@@ -1348,7 +1348,7 @@
+if (qtype == dns_rdatatype_a) {
+#ifdef ALLOW_FILTER_AAAA_ON_V4
+-isc_boolean_t have_a = ISC_FALSE;
++ isc_boolean_t have_aaaa = ISC_FALSE;
+#endif
+/*
+@@ -1390,7 +1390,7 @@
+if (result == ISC_R_SUCCESS) {
+mname = NULL;
+#ifdef ALLOW_FILTER_AAAA_ON_V4
+-have_a = ISC_TRUE;
++ have_aaaa = ISC_TRUE;
+#endif
+if (!query_isduplicate(client, fname,
+dns_rdatatype_a, &mname)) {
+@@ -1444,7 +1444,7 @@
+* There’s an A; check whether we’re filtering AAAA
+*/
+#ifdef ALLOW_FILTER_AAAA_ON_V4
+-if (have_a &&
++ if (have_aaaa &&
+(client->filter_aaaa == dns_v4_aaaa_break_dnssec ||
+(client->filter_aaaa == dns_v4_aaaa_filter &&
+(!WANTDNSSEC(client) || sigrdataset == NULL ||
+@@ -5224,6 +5224,7 @@
+#ifdef ALLOW_FILTER_AAAA_ON_V4
+static isc_boolean_t
+is_v4_client(ns_client_t *client) {
++ return (ISC_TRUE);
+if (isc_sockaddr_pf(&client->peeraddr) == AF_INET)
+return (ISC_TRUE);
+if (isc_sockaddr_pf(&client->peeraddr) == AF_INET6 &&
+@@ -6756,7 +6757,7 @@
+if (type == dns_rdatatype_any) {
+#ifdef ALLOW_FILTER_AAAA_ON_V4
+-isc_boolean_t have_aaaa, have_a, have_sig;
++ isc_boolean_t have_a4, have_aaaa, have_sig;
+/*
+* The filter-aaaa-on-v4 option should
+@@ -6765,8 +6766,8 @@
+* even in if it is not in our cache. This assumption could
+* be wrong but it is a good bet.
+*/
+-have_aaaa = ISC_FALSE;
+52
+-have_a = !authoritative;
++ have_a4 = ISC_FALSE;
++ have_aaaa = !authoritative;
+have_sig = ISC_FALSE;
+#endif
+/*
+@@ -6803,10 +6804,10 @@
+* that AAAAs can be hidden from IPv4 clients.
+*/
+if (client->filter_aaaa != dns_v4_aaaa_ok) {
+-if (rdataset->type == dns_rdatatype_aaaa)
++ if (rdataset->type == dns_rdatatype_a)
++ have_a4 = ISC_TRUE;
++ else if (rdataset->type == dns_rdatatype_aaaa)
+have_aaaa = ISC_TRUE;
+-else if (rdataset->type == dns_rdatatype_a)
+-have_a = ISC_TRUE;
+}
+#endif
+if (is_zone && qtype == dns_rdatatype_any &&
+@@ -6866,7 +6867,7 @@
+if (client->filter_aaaa == dns_v4_aaaa_break_dnssec)
+client->attributes |= NS_CLIENTATTR_FILTER_AAAA;
+else if (client->filter_aaaa != dns_v4_aaaa_ok &&
+- have_aaaa && have_a &&
++ have_a4 && have_aaaa &&
+(!have_sig || !WANTDNSSEC(client)))
+client->attributes |= NS_CLIENTATTR_FILTER_AAAA;
+#endif
+@@ -6934,10 +6935,10 @@
+(!WANTDNSSEC(client) || sigrdataset == NULL ||
+!dns_rdataset_isassociated(sigrdataset))))
+{
+-if (qtype == dns_rdatatype_aaaa) {
++ if (qtype == dns_rdatatype_a) {
+trdataset = query_newrdataset(client);
+result = dns_db_findrdataset(db, node, version,
+- dns_rdatatype_a, 0,
++ dns_rdatatype_aaaa, 0,
+client->now,
+trdataset, NULL);
+if (dns_rdataset_isassociated(trdataset))
+@@ -6977,7 +6978,7 @@
+* if the recursion for the A succeeds.
+*/
+result = query_recurse(client,
+-dns_rdatatype_a,
++ dns_rdatatype_aaaa,
+client->query.qname,
+NULL, NULL, resuming);
+if (result == ISC_R_SUCCESS) {
+@@ -6988,7 +6989,7 @@
+}
+}
+-} else if (qtype == dns_rdatatype_a &&
+53
++ } else if (qtype == dns_rdatatype_aaaa &&
+(client->attributes &
+NS_CLIENTATTR_FILTER_AAAA_RC) != 0) {
+client->attributes &=
+Only in bind-9.9.2-P1.a-filter/bin/pkcs11: Makefile
+Only in bind-9.9.2-P1.a-filter/bin/python: dnssec-checkds.py
+Only in bind-9.9.2-P1.a-filter/bin/python: Makefile
+Only in bind-9.9.2-P1.a-filter/bin/tests/system/dlz: prereq.sh
+Only in bind-9.9.2-P1.a-filter/bin/tests/system/ecdsa: prereq.sh
+Only in bind-9.9.2-P1.a-filter/bin/tests/system/gost: prereq.sh
+Only in bind-9.9.2-P1.a-filter/bin/tests/virtual-time: conf.sh
+Only in bind-9.9.2-P1.a-filter/bin/tests/virtual-time: Makefile
+Only in bind-9.9.2-P1.a-filter/contrib: check-secure-delegation.pl
+Only in bind-9.9.2-P1.a-filter/contrib: zone-edit.sh
+diff -ru bind-9.9.2-P1.org/lib/dns/message.c bind-9.9.2-P1.a-filter/lib/dns/message.c
+--- bind-9.9.2-P1.org/lib/dns/message.c 2012-10-26 13:50:34.000000000 +0900
++++ bind-9.9.2-P1.a-filter/lib/dns/message.c 2013-02-23 18:36:17.000000000 +0900
+@@ -1811,14 +1811,14 @@
+norender_rdataset(const dns_rdataset_t *rdataset, unsigned int options)
+{
+switch (rdataset->type) {
+-case dns_rdatatype_aaaa:
++ case dns_rdatatype_a:
+if ((options & DNS_MESSAGERENDER_FILTER_AAAA) == 0)
+return (ISC_FALSE);
+break;
+case dns_rdatatype_rrsig:
+if ((options & DNS_MESSAGERENDER_FILTER_AAAA) == 0 ||
+- rdataset->covers != dns_rdatatype_aaaa)
++ rdataset->covers != dns_rdatatype_a)
+return (ISC_FALSE);
+break;
+Only in bind-9.9.2-P1.a-filter/lib/dns/tests: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/dns/include/dns: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/dns/include/dst: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/dns/include: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/dns: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/irs/include/irs: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/irs/include: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/irs: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isc/include/isc: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isc/include: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isc: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isc/nls: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isc/nothreads/include/isc: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isc/nothreads/include: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isc/nothreads: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isc/unix/include/isc: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isc/unix/include: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isc/unix: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isccfg/include/isccfg: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isccfg/include: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/isccfg: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export: Makefile
+54
+Only in bind-9.9.2-P1.a-filter/lib/export/samples: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/export/samples: Makefile-postinstall
+Only in bind-9.9.2-P1.a-filter/lib/irs/include/irs: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/irs/include/irs: netdb.h
+Only in bind-9.9.2-P1.a-filter/lib/irs/include/irs: platform.h
+Only in bind-9.9.2-P1.a-filter/lib/irs/include: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/irs: Makefile
+Only in bind-9.9.2-P1.a-filter/lib/isc/tests: Makefile

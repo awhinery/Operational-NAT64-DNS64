@@ -1,0 +1,177 @@
+!
+! Last configuration change at 16:42:19 HST Tue Jul 18 2017 by whinery
+! NVRAM config last updated at 12:26:48 HST Tue Jul 18 2017 by whinery
+!
+version 15.3
+service timestamps debug datetime msec
+service timestamps log datetime localtime
+service password-encryption
+no platform punt-keepalive disable-kernel-core
+!
+hostname NAT64
+!
+boot-start-marker
+boot-end-marker
+!
+!
+vrf definition Mgmt-intf
+ !
+ address-family ipv4
+ exit-address-family
+ !
+ address-family ipv6
+ exit-address-family
+!
+enable secret 4 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+!
+aaa new-model
+!
+!
+aaa authentication login default group tacacs+ local line
+aaa authentication enable default group tacacs+ enable
+aaa accounting exec default start-stop group tacacs+
+aaa accounting commands 0 default start-stop group tacacs+
+aaa accounting commands 15 default start-stop group tacacs+
+aaa accounting system default start-stop group tacacs+
+!
+!
+!
+!
+!
+aaa session-id common
+clock timezone HST -10 0
+!
+
+ip domain name uhnet.net
+!
+ipv6 unicast-routing
+!
+!
+multilink bundle-name authenticated
+!
+!
+license boot level advipservices
+spanning-tree extend system-id
+!
+username bob password 7 xxxxxxxxxxxxxxxxx
+!
+redundancy
+ mode none
+!
+ip tftp source-interface GigabitEthernet0/0/3
+ip ssh authentication-retries 5
+ip ssh version 2
+!
+interface Loopback0
+ ip address 192.0.2.224 255.255.255.255
+ ipv6 address 2001:0DB8:F0:0:1:0:FFFF:0/128
+ ipv6 enable
+ ipv6 ospf 1 area 0
+!
+interface GigabitEthernet0/0/0
+ no ip address
+ shutdown
+ negotiation auto
+!
+interface GigabitEthernet0/0/1
+ description nat64 v4 side
+ ip address 198.51.100.190 255.255.255.252
+ ip ospf authentication-key 7 ================
+ negotiation auto
+ ipv6 nd ra suppress all
+ nat64 enable
+!
+interface GigabitEthernet0/0/2
+ description nat64 v6 side
+ no ip address
+ negotiation auto
+ ipv6 address 2001:0DB8:4101:FF::1/64
+ ipv6 enable
+ nat64 enable
+ ipv6 ospf 1 area 0
+!
+interface GigabitEthernet0/0/3
+ no ip address
+ shutdown
+ negotiation auto
+!
+interface GigabitEthernet0
+ vrf forwarding Mgmt-intf
+ no ip address
+ shutdown
+ negotiation auto
+!
+router ospf 1
+ router-id 192.0.2.224
+ redistribute static subnets
+ network 198.51.100.188 0.0.0.3 area 0
+ network 192.0.2.224 0.0.0.0 area 0
+!
+ip forward-protocol nd
+!
+no ip http server
+no ip http secure-server
+ip tacacs source-interface Loopback0
+!
+logging host 203.0.113.20
+access-list 12 permit 203.0.113.20 0.0.0.255
+access-list 64 deny   any
+cdp run
+ipv6 router ospf 1
+ redistribute static
+!
+!
+snmp-server community uhnet RO 64
+!
+tacacs-server host 128.171.28.171
+tacacs-server directed-request
+tacacs-server key 7 =============================
+!
+!
+ipv6 access-list nat64-acl
+ permit ipv6 2001:0DB8::/32 any
+!
+ipv6 access-list vtyin
+ permit ipv6 2001:0DB8:4101:10::/64 any
+ permit ipv6 2001:0DB8:4101:11::/64 any
+ permit ipv6 2001:0DB8::/48 any
+!
+control-plane
+!
+ !
+ !
+ !
+!
+!
+!
+!
+line con 0
+ transport preferred none
+ stopbits 1
+line aux 0
+ stopbits 1
+line vty 0
+ access-class 12 in
+ exec-timeout 0 0
+ password 7 04750E1220315F1750
+ ipv6 access-class vty-in in
+ transport preferred none
+ transport input ssh
+line vty 1 4
+ access-class 12 in
+ password 7 04750E1220315F1750
+ ipv6 access-class vty-in in
+ transport preferred none
+ transport input ssh
+line vty 5 15
+ access-class 12 in
+ password 7 04750E1220315F1750
+ ipv6 access-class vty-in in
+ transport preferred none
+ transport input ssh
+!
+
+nat64 v4 pool pool1 198.51.100.240 198.51.100.255
+nat64 v6v4 list nat64-acl pool pool1 overload
+!
+end
